@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "log6302a-tp4"
+version = "0.1.0"
+description = ""
+authors = [
+    "Julien Cassagne <julien.e.cassagne@gmail.com>",
+    "NextFire <git@yuru.moe>",
+    "quentinguidee <contact@quentinguidee.dev>",
+]
+packages = [{ include = "code_analysis", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "~3.12"
+numpy = "^1.26.3"
+graphviz = "^0.20.1"
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^6.29.0"
+ruff = "^0.1.13"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+target-version = "py312"
+extend-select = ["I"]
+exclude = ["src/code_analysis"]
