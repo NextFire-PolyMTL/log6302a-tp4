@@ -121,7 +121,7 @@ class PossiblyReachingDefinitions(DataFlowAlgorithm):
         return self.cfg.get_any_children(nid)
 
     def can_propagate(self, nid: int, next_nid: int) -> bool:
-        return (self.out_dict[next_nid] - self.in_dict[nid]) != set()
+        return (self.out_dict[nid] - self.in_dict[next_nid]) != set()
 
     def propagate(self, nid: int, next_nid: int) -> None:
         self.in_dict[next_nid] |= self.out_dict[nid]
