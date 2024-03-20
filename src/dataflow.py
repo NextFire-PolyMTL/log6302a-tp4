@@ -163,7 +163,7 @@ class PossibleReachableReferences(DataFlowAlgorithm):
         return self.cfg.get_any_parents(nid)
 
     def can_propagate(self, nid: int, next_nid: int) -> bool:
-        return (self.in_dict[next_nid] - self.out_dict[nid]) != set()
+        return (self.in_dict[nid] - self.out_dict[next_nid]) != set()
 
     def propagate(self, nid: int, next_nid: int) -> None:
         self.out_dict[next_nid] |= self.in_dict[nid]
