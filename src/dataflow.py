@@ -19,9 +19,30 @@ class DataFlowAlgorithm(ABC):
         self.visited: set[int]
         self.worklist: list[int]
 
+    def get_key(self, nid: int) -> tuple[str, str]:
+        return (self.cfg.get_var_scope(nid), self.cfg.get_var_id(nid))
+
+    def build_defs(self) -> dict[tuple[str, str], set[int]]:
+        all_defs = defaultdict[tuple[str, str], set[int]](set)
+        for nid in self.cfg.get_node_ids():
+            if self.cfg.get_type(nid) == "BinOP" and self.cfg.get_image(nid) == "=":
+                left_nid, _ = self.cfg.get_op_hands(nid)
+                if self.cfg.get_type(left_nid) == "Variable":
+                    key = self.get_key(left_nid)
+                    all_defs[key].add(left_nid)
+        return all_defs
+
     @abstractmethod
-    def build_gen(self) -> None:
+    def build_gen(self) -> dict[int, set[int]]:
         ...
+
+    def build_kill(self) -> dict[int, set[int]]:
+        kill_dict = defaultdict[int, set[int]](set)
+        for nid, var_nids in self.gen_dict.items():
+            for var_nid in var_nids:
+                key = self.get_key(var_nid)
+                kill_dict[nid] |= self.all_defs[key] - var_nids
+        return kill_dict
 
     @abstractmethod
     def pre_loop_init(self) -> Iterable[None]:
@@ -46,30 +67,12 @@ class DataFlowAlgorithm(ABC):
     def __call__(self, cfg: CFG) -> tuple[dict[int, set[int]], dict[int, set[int]]]:
         self.cfg = cfg
 
+        self.all_defs = self.build_defs()
+        self.gen_dict = self.build_gen()
+        self.kill_dict = self.build_kill()
+
         self.in_dict = defaultdict(set)
         self.out_dict = defaultdict(set)
-
-        self.all_defs = defaultdict(set)
-        for nid in self.cfg.get_node_ids():
-            if self.cfg.get_type(nid) == "BinOP" and self.cfg.get_image(nid) == "=":
-                left_nid, _ = self.cfg.get_op_hands(nid)
-                if self.cfg.get_type(left_nid) == "Variable":
-                    key = (
-                        self.cfg.get_var_scope(left_nid),
-                        self.cfg.get_var_id(left_nid),
-                    )
-                    self.all_defs[key].add(left_nid)
-
-        self.build_gen()
-
-        self.kill_dict = defaultdict(set)
-        for nid, var_nids in self.gen_dict.items():
-            for var_nid in var_nids:
-                key = (
-                    self.cfg.get_var_scope(var_nid),
-                    self.cfg.get_var_id(var_nid),
-                )
-                self.kill_dict[nid] |= self.all_defs[key] - var_nids
 
         self.visited = set()
         self.worklist = []
@@ -89,21 +92,12 @@ class DataFlowAlgorithm(ABC):
 
 
 class PossiblyReachingDefinitions(DataFlowAlgorithm):
-    def build_gen(self) -> None:
-        self.gen_dict = defaultdict(set)
+    def build_gen(self) -> dict[int, set[int]]:
+        gen_dict = defaultdict[int, set[int]](set)
         for nid in self.cfg.get_node_ids():
-            # if self.cfg.get_type(nid) == "BinOP" and self.cfg.get_image(nid) == "=":
-            #     left_nid, _ = self.cfg.get_op_hands(nid)
-            #     if self.cfg.get_type(left_nid) == "Variable":
-            #         self.gen_dict[nid].add(left_nid)
             if self.cfg.get_type(nid) == "Variable":
-                self.gen_dict[nid].add(nid)
-
-    def get_entry_node(self) -> Iterable[int]:
-        node_ids = self.cfg.get_node_ids()
-        for nid in node_ids:
-            if self.cfg.get_type(nid) == "Entry":
-                yield nid
+                gen_dict[nid].add(nid)
+        return gen_dict
 
     def pre_loop_init(self) -> Iterable[None]:
         for entry_nid in self.get_entry_node():
@@ -111,6 +105,12 @@ class PossiblyReachingDefinitions(DataFlowAlgorithm):
             self.visited.add(entry_nid)
             self.worklist.append(entry_nid)
             yield
+
+    def get_entry_node(self) -> Iterable[int]:
+        node_ids = self.cfg.get_node_ids()
+        for nid in node_ids:
+            if self.cfg.get_type(nid) == "Entry":
+                yield nid
 
     def apply_flow_eq(self, nid: int) -> None:
         self.out_dict[nid] = self.gen_dict[nid] | (
@@ -128,24 +128,12 @@ class PossiblyReachingDefinitions(DataFlowAlgorithm):
 
 
 class PossibleReachableReferences(DataFlowAlgorithm):
-    def build_gen(self) -> None:
-        self.gen_dict = defaultdict(set)
+    def build_gen(self) -> dict[int, set[int]]:
+        gen_dict = defaultdict[int, set[int]](set)
         for nid in self.cfg.get_node_ids():
             if self.cfg.get_type(nid) == "Variable":
-                # children: list[int] = self.cfg.get_children(nid)
-                # if not (
-                #     len(children) > 0
-                #     and self.cfg.get_type(children[0]) == "BinOP"
-                #     and self.cfg.get_image(children[0]) == "="
-                # ):
-                #     self.gen_dict[nid].add(nid)
-                self.gen_dict[nid].add(nid)
-
-    def get_exit_node(self) -> Iterable[int]:
-        node_ids = self.cfg.get_node_ids()
-        for nid in node_ids:
-            if self.cfg.get_type(nid) == "Exit":
-                yield nid
+                gen_dict[nid].add(nid)
+        return gen_dict
 
     def pre_loop_init(self) -> Iterable[None]:
         for exit_nid in self.get_exit_node():
@@ -153,6 +141,12 @@ class PossibleReachableReferences(DataFlowAlgorithm):
             self.visited.add(exit_nid)
             self.worklist.append(exit_nid)
             yield
+
+    def get_exit_node(self) -> Iterable[int]:
+        node_ids = self.cfg.get_node_ids()
+        for nid in node_ids:
+            if self.cfg.get_type(nid) == "Exit":
+                yield nid
 
     def apply_flow_eq(self, nid: int) -> None:
         self.in_dict[nid] = self.gen_dict[nid] | (
