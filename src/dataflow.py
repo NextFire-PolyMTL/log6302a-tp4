@@ -92,10 +92,12 @@ class PossiblyReachingDefinitions(DataFlowAlgorithm):
     def build_gen(self) -> None:
         self.gen_dict = defaultdict(set)
         for nid in self.cfg.get_node_ids():
-            if self.cfg.get_type(nid) == "BinOP" and self.cfg.get_image(nid) == "=":
-                left_nid, _ = self.cfg.get_op_hands(nid)
-                if self.cfg.get_type(left_nid) == "Variable":
-                    self.gen_dict[nid].add(left_nid)
+            # if self.cfg.get_type(nid) == "BinOP" and self.cfg.get_image(nid) == "=":
+            #     left_nid, _ = self.cfg.get_op_hands(nid)
+            #     if self.cfg.get_type(left_nid) == "Variable":
+            #         self.gen_dict[nid].add(left_nid)
+            if self.cfg.get_type(nid) == "Variable":
+                self.gen_dict[nid].add(nid)
 
     def get_entry_node(self) -> Iterable[int]:
         node_ids = self.cfg.get_node_ids()
@@ -130,13 +132,14 @@ class PossibleReachableReferences(DataFlowAlgorithm):
         self.gen_dict = defaultdict(set)
         for nid in self.cfg.get_node_ids():
             if self.cfg.get_type(nid) == "Variable":
-                children: list[int] = self.cfg.get_children(nid)
-                if not (
-                    len(children) > 0
-                    and self.cfg.get_type(children[0]) == "BinOP"
-                    and self.cfg.get_image(children[0]) == "="
-                ):
-                    self.gen_dict[nid].add(nid)
+                # children: list[int] = self.cfg.get_children(nid)
+                # if not (
+                #     len(children) > 0
+                #     and self.cfg.get_type(children[0]) == "BinOP"
+                #     and self.cfg.get_image(children[0]) == "="
+                # ):
+                #     self.gen_dict[nid].add(nid)
+                self.gen_dict[nid].add(nid)
 
     def get_exit_node(self) -> Iterable[int]:
         node_ids = self.cfg.get_node_ids()
