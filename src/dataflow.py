@@ -17,7 +17,8 @@ def is_definition(cfg: CFG, nid: int) -> bool:
                 cfg.get_type(cfg.get_children(nid)[0]) == "BinOP"
                 and cfg.get_image(cfg.get_children(nid)[0]) == "="
             ),
-            cfg.get_type(cfg.get_parents(nid)[0]) == "MemberDeclaration",
+            "MemberDeclaration" in cfg.get_type(cfg.get_parents(nid)[0]),
+            cfg.get_type(cfg.get_parents(nid)[0]) == "Global",
         ]
     )
 
