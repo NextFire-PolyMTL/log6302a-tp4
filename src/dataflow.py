@@ -5,12 +5,6 @@ from collections.abc import Iterable
 from code_analysis import CFG
 
 
-def yield_all_vars(cfg: CFG):
-    for nid in cfg.get_node_ids():
-        if cfg.get_type(nid) == "Variable":
-            yield nid
-
-
 def is_definition(cfg: CFG, nid: int) -> bool:
     return any(
         [
@@ -26,6 +20,24 @@ def is_definition(cfg: CFG, nid: int) -> bool:
             cfg.get_type(cfg.get_parents(nid)[0]) == "MemberDeclaration",
         ]
     )
+
+
+def yield_all_vars(cfg: CFG) -> Iterable[int]:
+    for nid in cfg.get_node_ids():
+        if cfg.get_type(nid) == "Variable":
+            yield nid
+
+
+def yield_all_defs(cfg: CFG) -> Iterable[int]:
+    for nid in yield_all_vars(cfg):
+        if is_definition(cfg, nid):
+            yield nid
+
+
+def yield_all_refs(cfg: CFG) -> Iterable[int]:
+    for nid in yield_all_vars(cfg):
+        if not is_definition(cfg, nid):
+            yield nid
 
 
 def get_key(cfg: CFG, nid: int) -> tuple[str, str]:
@@ -48,10 +60,9 @@ class DataFlowAlgorithm(ABC):
 
     def build_defs(self) -> dict[tuple[str, str], set[int]]:
         all_defs = defaultdict[tuple[str, str], set[int]](set)
-        for nid in yield_all_vars(self.cfg):
-            if is_definition(self.cfg, nid):
-                key = get_key(self.cfg, nid)
-                all_defs[key].add(nid)
+        for nid in yield_all_defs(self.cfg):
+            key = get_key(self.cfg, nid)
+            all_defs[key].add(nid)
         return all_defs
 
     @abstractmethod
@@ -116,9 +127,8 @@ class DataFlowAlgorithm(ABC):
 class PossiblyReachingDefinitions(DataFlowAlgorithm):
     def build_gen(self) -> dict[int, set[int]]:
         gen_dict = defaultdict[int, set[int]](set)
-        for nid in yield_all_vars(self.cfg):
-            if is_definition(self.cfg, nid):
-                gen_dict[nid].add(nid)
+        for nid in yield_all_defs(self.cfg):
+            gen_dict[nid] = {nid}
         return gen_dict
 
     def pre_loop_init(self) -> Iterable[None]:
@@ -152,9 +162,8 @@ class PossiblyReachingDefinitions(DataFlowAlgorithm):
 class PossibleReachableReferences(DataFlowAlgorithm):
     def build_gen(self) -> dict[int, set[int]]:
         gen_dict = defaultdict[int, set[int]](set)
-        for nid in yield_all_vars(self.cfg):
-            if not is_definition(self.cfg, nid):
-                gen_dict[nid].add(nid)
+        for nid in yield_all_refs(self.cfg):
+            gen_dict[nid] = {nid}
         return gen_dict
 
     def pre_loop_init(self) -> Iterable[None]:
