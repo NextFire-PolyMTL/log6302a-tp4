@@ -128,7 +128,7 @@ class PossiblyReachingDefinitions(DataFlowAlgorithm):
     def build_gen(self) -> dict[int, set[int]]:
         gen_dict = defaultdict[int, set[int]](set)
         for nid in yield_all_defs(self.cfg):
-            gen_dict[nid] = {nid}
+            gen_dict[nid].add(nid)
         return gen_dict
 
     def pre_loop_init(self) -> Iterable[None]:
@@ -163,7 +163,7 @@ class PossibleReachableReferences(DataFlowAlgorithm):
     def build_gen(self) -> dict[int, set[int]]:
         gen_dict = defaultdict[int, set[int]](set)
         for nid in yield_all_refs(self.cfg):
-            gen_dict[nid] = {nid}
+            gen_dict[nid].add(nid)
         return gen_dict
 
     def pre_loop_init(self) -> Iterable[None]:
