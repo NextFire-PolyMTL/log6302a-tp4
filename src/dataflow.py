@@ -5,6 +5,33 @@ from collections.abc import Iterable
 from code_analysis import CFG
 
 
+def yield_all_vars(cfg: CFG):
+    for nid in cfg.get_node_ids():
+        if cfg.get_type(nid) == "Variable":
+            yield nid
+
+
+def is_definition(cfg: CFG, nid: int) -> bool:
+    return any(
+        [
+            cfg.get_type(cfg.get_children(nid)[0]) == "ValueParameter",
+            (
+                cfg.get_type(cfg.get_children(cfg.get_children(nid)[0])[0])
+                == "OptValueParameter"
+            ),
+            (
+                cfg.get_type(cfg.get_children(nid)[0]) == "BinOP"
+                and cfg.get_image(cfg.get_children(nid)[0]) == "="
+            ),
+            cfg.get_type(cfg.get_parents(nid)[0]) == "MemberDeclaration",
+        ]
+    )
+
+
+def get_key(cfg: CFG, nid: int) -> tuple[str, str]:
+    return (cfg.get_var_scope(nid), cfg.get_var_id(nid))
+
+
 class DataFlowAlgorithm(ABC):
     def __init__(self):
         self.cfg: CFG
@@ -19,17 +46,12 @@ class DataFlowAlgorithm(ABC):
         self.visited: set[int]
         self.worklist: list[int]
 
-    def get_key(self, nid: int) -> tuple[str, str]:
-        return (self.cfg.get_var_scope(nid), self.cfg.get_var_id(nid))
-
     def build_defs(self) -> dict[tuple[str, str], set[int]]:
         all_defs = defaultdict[tuple[str, str], set[int]](set)
-        for nid in self.cfg.get_node_ids():
-            if self.cfg.get_type(nid) == "BinOP" and self.cfg.get_image(nid) == "=":
-                left_nid, _ = self.cfg.get_op_hands(nid)
-                if self.cfg.get_type(left_nid) == "Variable":
-                    key = self.get_key(left_nid)
-                    all_defs[key].add(left_nid)
+        for nid in yield_all_vars(self.cfg):
+            if is_definition(self.cfg, nid):
+                key = get_key(self.cfg, nid)
+                all_defs[key].add(nid)
         return all_defs
 
     @abstractmethod
@@ -40,7 +62,7 @@ class DataFlowAlgorithm(ABC):
         kill_dict = defaultdict[int, set[int]](set)
         for nid, var_nids in self.gen_dict.items():
             for var_nid in var_nids:
-                key = self.get_key(var_nid)
+                key = get_key(self.cfg, var_nid)
                 kill_dict[nid] |= self.all_defs[key] - var_nids
         return kill_dict
 
@@ -94,8 +116,8 @@ class DataFlowAlgorithm(ABC):
 class PossiblyReachingDefinitions(DataFlowAlgorithm):
     def build_gen(self) -> dict[int, set[int]]:
         gen_dict = defaultdict[int, set[int]](set)
-        for nid in self.cfg.get_node_ids():
-            if self.cfg.get_type(nid) == "Variable":
+        for nid in yield_all_vars(self.cfg):
+            if is_definition(self.cfg, nid):
                 gen_dict[nid].add(nid)
         return gen_dict
 
@@ -130,8 +152,8 @@ class PossiblyReachingDefinitions(DataFlowAlgorithm):
 class PossibleReachableReferences(DataFlowAlgorithm):
     def build_gen(self) -> dict[int, set[int]]:
         gen_dict = defaultdict[int, set[int]](set)
-        for nid in self.cfg.get_node_ids():
-            if self.cfg.get_type(nid) == "Variable":
+        for nid in yield_all_vars(self.cfg):
+            if not is_definition(self.cfg, nid):
                 gen_dict[nid].add(nid)
         return gen_dict
 
